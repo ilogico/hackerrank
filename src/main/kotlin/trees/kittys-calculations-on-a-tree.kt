@@ -2,15 +2,18 @@ package trees
 
 fun main(args: Array<String>) {
     val distances = mutableMapOf<Int, MutableMap<Int, Int>>()
-    val results = mutableMapOf<Int, MutableMap<Int, Int>>()
 
     val (nrNodes, nrQueries) = readLine()!!.split(' ').map { it.toInt() }
 
+    val nodes = (0 until nrNodes).map { Node(it + 1) }
+
     (1 until nrNodes).forEach {
-        val nodes = readLine()!!.split(' ').map { it.toInt() }.sorted()
-        distances.getOrPut(nodes[0], ::mutableMapOf)[nodes[1]] = 1
-        distances.getOrPut(nodes[1], ::mutableMapOf)[nodes[0]] = 1
+        val (parent, child) = readLine()!!.split(' ').map { it.toInt() - 1}
+        nodes[parent].children.add(nodes[child])
     }
+
+    val tree = nodes.first()
+    tree.populateDistances()
 
     (1..nrQueries).forEach {
         readLine()
@@ -19,7 +22,10 @@ fun main(args: Array<String>) {
         repeat(set.size) { i ->
             val a = set[i]
             (i + 1 until set.size).forEach { j ->
-                sum += results.calc(distances, a, set[j])
+                val b = set[j]
+                sum += a * b * distances.getOrPut(a, ::mutableMapOf).getOrPut(b) {
+                    tree.distance(a, b)
+                }
                 sum %= 1000000007
             }
         }
@@ -28,38 +34,10 @@ fun main(args: Array<String>) {
 
 }
 
-private fun MutableMap<Int, MutableMap<Int, Int>>.distance(a: Int, b: Int, visited: MutableSet<Int>? = null): Int? {
-    if (a == b) {
-        return 0
-    }
-    val distsOfA = getOrPut(a, ::mutableMapOf)
-    var result = distsOfA[b]
-    if (result != null)
-        return result
-
-    val currentlyVisited = visited ?: mutableSetOf()
-    currentlyVisited.add(a)
-
-    result = distsOfA.keys.filter { !currentlyVisited.contains(it) }
-        .map { distance(it, b, currentlyVisited) ?: -1 }
-        .filter { it >= 0 }
-        .min()
-
-    if (result != null) {
-        result += 1
-        distsOfA[b] = result
-        this.getOrPut(b, ::mutableMapOf)[a] = result
-    }
-    return result
-}
-
-private fun MutableMap<Int, MutableMap<Int, Int>>.calc(distances: MutableMap<Int, MutableMap<Int, Int>>, a: Int, b: Int) = getOrPut(a, ::mutableMapOf).getOrPut(b) {
-    distances.distance(a, b)!! * a * b
-}
 
 private class Node(val value: Int) {
     val children = mutableListOf<Node>()
-    val childrenDistances = mutableListOf<MutableMap<Int, Int>>()
+    val childrenDistances = mutableListOf<Map<Int, Int>>()
 }
 
 private tailrec fun Node.distance(a: Int, b: Int): Int {
@@ -75,4 +53,12 @@ private tailrec fun Node.distance(a: Int, b: Int): Int {
         return childrenDistances[aIndex][a]!! + childrenDistances[bIndex][b]!!
 
     return children[aIndex].distance(a, b)
+}
+
+private fun Node.populateDistances() {
+    children.forEach {
+        it.populateDistances()
+        childrenDistances.add(mapOf(it.value to 1, *it.childrenDistances.flatMap { it.entries.map { Pair(it.key, it.value + 1) } }.toTypedArray()))
+    }
+
 }
